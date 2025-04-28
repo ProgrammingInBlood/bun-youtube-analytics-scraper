@@ -1,4 +1,4 @@
-import { extractYouTubeTokens, fetchVideoMetadata, isValidYouTubeUrl, extractVideoId } from '../scraping/puppeteer';
+import { extractYouTubeTokens, fetchVideoMetadata, isValidYouTubeUrl, extractVideoId } from '../utils/directTokenExtractor';
 
 // Cache for channel names to avoid repeated scraping
 const channelNameCache: Record<string, { name: string, timestamp: number }> = {};
@@ -359,14 +359,47 @@ export async function getVideoMetadata(urls: string[]): Promise<{ metadata: Vide
   // Process each URL in parallel
   const metadataPromises = validUrls.map(async (url) => {
     try {
+      const videoId = extractVideoId(url) || 'unknown';
+      
       // Extract required tokens for YouTube API
       const tokens = await extractYouTubeTokens(url);
       
-      // Fetch video metadata
+      // Fetch video metadata - returns primary and backup data
       const result = await fetchVideoMetadata(url, tokens);
       
-      // Parse the metadata with the source info
-      return parseMetadata(result.data, url, result.videoId, result.source, result.channelName);
+      // Try to extract channel name from HTML if available
+      const extractedChannelName = extractChannelNameFromHTML(tokens.rawHtml);
+      
+      // Parse primary data first
+      const metadata = parseMetadata(result.primary, url, videoId, 'primary', extractedChannelName);
+      
+      // If missing key info, try backup data
+      if (!metadata.title || metadata.viewCount === 0) {
+        const backupMetadata = parseMetadata(result.backup, url, videoId, 'backup', extractedChannelName);
+        
+        // Merge data, preferring primary where available
+        if (!metadata.title && backupMetadata.title) {
+          metadata.title = backupMetadata.title;
+        }
+        
+        if (metadata.viewCount === 0 && backupMetadata.viewCount > 0) {
+          metadata.viewCount = backupMetadata.viewCount;
+        }
+        
+        if (metadata.likeCount === 0 && backupMetadata.likeCount > 0) {
+          metadata.likeCount = backupMetadata.likeCount;
+        }
+        
+        if (!metadata.channelName && backupMetadata.channelName) {
+          metadata.channelName = backupMetadata.channelName;
+        }
+        
+        if (!metadata.isLive && backupMetadata.isLive) {
+          metadata.isLive = backupMetadata.isLive;
+        }
+      }
+      
+      return metadata;
     } catch (error) {
       console.error(`Error processing ${url}:`, error);
       

@@ -1,4 +1,4 @@
-import { extractYouTubeTokens, fetchLiveChatMessages, isValidYouTubeUrl } from '../scraping/puppeteer';
+import { extractYouTubeTokens, fetchLiveChatMessages, isValidYouTubeUrl, extractVideoId } from '../utils/directTokenExtractor';
 import { formatChatMessages } from '../utils/formatters';
 
 interface EmojiObject {
@@ -46,15 +46,6 @@ const CACHE_EXPIRATION = 5 * 60 * 1000;
 
 // Maximum number of messages to keep in the cache per video
 const MAX_CACHED_MESSAGES = 2000;
-
-/**
- * Extract video ID from YouTube URL
- */
-function extractVideoId(url: string): string | null {
-  const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
-  const match = url.match(regExp);
-  return (match && match[7].length === 11) ? match[7] : null;
-}
 
 /**
  * Fetches live chat from multiple YouTube video URLs with pagination and filtering

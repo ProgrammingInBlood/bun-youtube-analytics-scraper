@@ -3,7 +3,6 @@ import { cors } from '@elysiajs/cors';
 import { getLiveChat } from './api/liveChat';
 import { getVideoMetadata } from './api/videoMetadata';
 import { getChannelLiveVideos } from './api/channelLiveVideos';
-import { closeBrowser, debugBrowserState, forceResetBrowserState } from './scraping/puppeteer';
 
 interface LiveChatRequestBody {
   urls: string[];
@@ -20,25 +19,31 @@ interface ChannelRequestBody {
   channelUrl: string;
 }
 
+// Debug information about the current state
+async function getDebugInfo() {
+  return {
+    status: 'Direct API implementation (no Puppeteer)',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0',
+    memory: process.memoryUsage()
+  };
+}
+
 const app = new Elysia()
   .use(cors())
   .get('/', () => 'YouTube Live Chat Aggregator API')
   .get('/debug', async () => {
-    // Return debug information about the current state
-    const browserInfo = await debugBrowserState();
+    const debugInfo = await getDebugInfo();
     return {
       status: 'ok',
-      message: 'Debug information for Puppeteer browser instance',
-      browserInfo
+      message: 'Debug information',
+      info: debugInfo
     };
   })
   .post('/reset', async () => {
-    // Forcefully reset the browser state
-    const result = await forceResetBrowserState();
     return {
       status: 'ok',
-      message: 'Browser state has been reset',
-      result
+      message: 'No browser to reset in direct API mode'
     };
   })
   .post('/api/live-chat', 
@@ -125,7 +130,7 @@ const app = new Elysia()
 
 console.log(`🦊 YouTube Live Chat Aggregator API is running at ${app.server?.hostname}:${app.server?.port}`);
 
-// Cleanup browser on server shutdown
+// Cleanup on server shutdown
 let isShuttingDown = false;
 
 async function cleanup() {
@@ -142,7 +147,7 @@ async function cleanup() {
   }, 10000); // Force exit after 10 seconds
   
   try {
-    // First close the HTTP server gracefully
+    // Close the HTTP server gracefully
     if (app.server) {
       console.log('Closing HTTP server...');
       await new Promise<void>((resolve) => {
@@ -151,10 +156,6 @@ async function cleanup() {
         (app.server as any).close(() => resolve());
       });
     }
-    
-    // Then close the browser
-    console.log('Closing Puppeteer browser...');
-    await closeBrowser();
     
     console.log('Cleanup completed successfully');
     clearTimeout(forceExitTimeout);

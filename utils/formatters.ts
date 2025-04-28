@@ -1,4 +1,4 @@
-import { extractVideoId } from '../scraping/puppeteer';
+import { extractVideoId } from '../utils/directTokenExtractor';
 import { v4 as uuidv4 } from 'uuid';
 
 interface EmojiObject {

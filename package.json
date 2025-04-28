@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@elysiajs/cors": "^0.8.0",
+    "axios": "^1.9.0",
     "elysia": "^0.8.15",
-    "puppeteer-core": "^24.7.2",
     "typescript": "^5.3.3",
     "uuid": "^11.1.0"
   },

@@ -208,55 +208,113 @@ export async function fetchVideoMetadata(videoUrl: string, tokens: any) {
     throw new Error('Missing required tokens for metadata fetch');
   }
 
-  try {
-    const videoId = extractVideoId(videoUrl);
-    if (!videoId) {
-      throw new Error('Invalid YouTube URL');
+  const MAX_RETRIES = 5;
+  const INITIAL_RETRY_DELAY = 1000; // 1 second
+  const MAX_RETRY_DELAY = 30000; // 30 seconds
+
+  let retryDelay = INITIAL_RETRY_DELAY;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const videoId = extractVideoId(videoUrl);
+      if (!videoId) {
+        throw new Error('Invalid YouTube URL');
+      }
+
+      const requestData = {
+        context: {
+          client: {
+            clientName: 'WEB',
+            clientVersion: tokens.clientVersion,
+            visitorData: tokens.visitorData
+          }
+        },
+        videoId
+      };
+
+      // Try primary endpoint first
+      try {
+        const primaryResponse = await axios.post(
+          `https://www.youtube.com/youtubei/v1/updated_metadata?key=${tokens.apiKey}`,
+          requestData,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            },
+            timeout: 15000 // 15 second timeout
+          }
+        );
+
+        if (primaryResponse.data) {
+          // Reset retry delay on success
+          retryDelay = INITIAL_RETRY_DELAY;
+          return {
+            primary: primaryResponse.data,
+            backup: null
+          };
+        }
+      } catch (primaryError: any) {
+        // Check if it's a load failure
+        if (primaryError?.message?.includes('Load failed') || 
+            primaryError?.response?.status === 429 || 
+            primaryError?.response?.status === 503) {
+          console.warn(`Primary metadata fetch failed due to load/rate limit (attempt ${attempt}):`, primaryError?.message || 'Unknown error');
+        } else {
+          console.warn(`Primary metadata fetch failed (attempt ${attempt}):`, primaryError?.message || 'Unknown error');
+        }
+      }
+
+      // If primary fails, try backup endpoint
+      try {
+        const backupResponse = await axios.post(
+          `https://www.youtube.com/youtubei/v1/next?key=${tokens.apiKey}`,
+          requestData,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            },
+            timeout: 15000 // 15 second timeout
+          }
+        );
+
+        if (backupResponse.data) {
+          // Reset retry delay on success
+          retryDelay = INITIAL_RETRY_DELAY;
+          return {
+            primary: null,
+            backup: backupResponse.data
+          };
+        }
+      } catch (backupError: any) {
+        // Check if it's a load failure
+        if (backupError?.message?.includes('Load failed') || 
+            backupError?.response?.status === 429 || 
+            backupError?.response?.status === 503) {
+          console.warn(`Backup metadata fetch failed due to load/rate limit (attempt ${attempt}):`, backupError?.message || 'Unknown error');
+        } else {
+          console.warn(`Backup metadata fetch failed (attempt ${attempt}):`, backupError?.message || 'Unknown error');
+        }
+      }
+
+      // If both endpoints fail, wait before retrying with exponential backoff
+      if (attempt < MAX_RETRIES) {
+        console.log(`Retrying metadata fetch in ${retryDelay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+        
+        // Increase delay exponentially but cap at MAX_RETRY_DELAY
+        retryDelay = Math.min(retryDelay * 2, MAX_RETRY_DELAY);
+      }
+    } catch (error: any) {
+      console.error(`Error fetching video metadata (attempt ${attempt}):`, error?.message || 'Unknown error');
+      if (attempt === MAX_RETRIES) {
+        throw new Error(`Failed to fetch video metadata after ${MAX_RETRIES} attempts: ${error?.message || 'Unknown error'}`);
+      }
     }
-
-    const requestData = {
-      context: {
-        client: {
-          clientName: 'WEB',
-          clientVersion: tokens.clientVersion,
-          visitorData: tokens.visitorData
-        }
-      },
-      videoId
-    };
-
-    // Fetch primary data (via updated_metadata endpoint)
-    const primaryResponse = await axios.post(
-      `https://www.youtube.com/youtubei/v1/updated_metadata?key=${tokens.apiKey}`,
-      requestData,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        }
-      }
-    );
-
-    // Fetch backup data (via next endpoint) if needed
-    const backupResponse = await axios.post(
-      `https://www.youtube.com/youtubei/v1/next?key=${tokens.apiKey}`,
-      requestData,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        }
-      }
-    );
-
-    return {
-      primary: primaryResponse.data,
-      backup: backupResponse.data
-    };
-  } catch (error) {
-    console.error(`Error fetching video metadata: ${error}`);
-    throw error;
   }
+
+  throw new Error('Failed to fetch video metadata after all retries');
 }
 
 /**

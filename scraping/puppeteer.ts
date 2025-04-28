@@ -73,7 +73,7 @@ async function getBrowser(): Promise<Browser> {
         
         // On Android/Termux, we connect to an existing Chromium installation
         browser = await puppeteer.connect({
-          browserURL: 'http://localhost:9222',
+          browserURL: 'http://192.168.0.243:9222',
           defaultViewport: {
             width: 1280,
             height: 720

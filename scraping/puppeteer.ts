@@ -1,4 +1,4 @@
-import puppeteer, { Browser, Page } from 'puppeteer';
+import puppeteer, { Browser, Page } from 'puppeteer-core';
 
 // Cache to store tokens for each video URL
 const tokenCache: Record<string, {
@@ -22,6 +22,13 @@ let browserCreationPromise: Promise<Browser> | null = null;
 
 // Track active pages by video URL
 const activePages: Map<string, Page> = new Map();
+
+// Function to check if running on Android
+function isRunningOnAndroid(): boolean {
+  return process.platform === 'android' || 
+         /android/i.test(process.env.TERMUX_VERSION || '') || 
+         /android/i.test(process.env.PREFIX || '');
+}
 
 // Get or create a shared browser instance
 async function getBrowser(): Promise<Browser> {
@@ -56,11 +63,39 @@ async function getBrowser(): Promise<Browser> {
       // We need to create a new browser
       console.log('Launching new browser instance...');
       
-      // Launch a new browser
-      const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-      });
+      // Determine browser launch options based on environment
+      const isAndroid = isRunningOnAndroid();
+      
+      let browser: Browser;
+      
+      if (isAndroid) {
+        console.log('Running on Android/Termux, connecting to installed Chromium...');
+        
+        // On Android/Termux, we connect to an existing Chromium installation
+        browser = await puppeteer.connect({
+          browserURL: 'http://localhost:9222',
+          defaultViewport: {
+            width: 1280,
+            height: 720
+          }
+        });
+        
+        console.log('Successfully connected to Chromium browser on Termux');
+      } else {
+        // Standard environment - launch browser with appropriate arguments
+        browser = await puppeteer.launch({
+          headless: true,
+          executablePath: process.env.CHROME_PATH, // Allow custom Chrome path via env variable
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--disable-gpu',
+            '--window-size=1280,720'
+          ]
+        });
+      }
       
       // Close the initial blank tab that Puppeteer creates
       const pages = await browser.pages();

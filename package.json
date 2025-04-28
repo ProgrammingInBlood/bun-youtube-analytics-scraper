@@ -4,21 +4,19 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --watch index.ts",
-    "start": "NODE_ENV=production bun run dist/index.js",
-    "cleanup": "find . -name 'screenshots' -type d -exec rm -rf {} +",
-    "build": "bun build --target bun --minify --outdir ./dist index.ts",
-    "build:binary": "bun build --compile --minify --target bun --outfile server index.ts"
+    "dev": "bun run --watch index.ts",
+    "start": "bun run index.ts",
+    "cleanup": "echo 'Cleaning up any stray Chrome processes...' && pkill -f 'chrome|chromium' || true"
   },
   "dependencies": {
     "@elysiajs/cors": "^0.8.0",
-    "elysia": "^0.8.9",
-    "puppeteer": "^21.6.1",
-    "typescript": "^5.0.0",
-    "uuid": "^9.0.1"
+    "elysia": "^0.8.15",
+    "puppeteer-core": "^24.7.2",
+    "typescript": "^5.3.3",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
-    "@types/uuid": "^9.0.8",
+    "@types/uuid": "^10.0.0",
     "bun-types": "latest"
   }
-} 
+}

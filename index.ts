@@ -30,7 +30,11 @@ async function getDebugInfo() {
 }
 
 const app = new Elysia()
-  .use(cors())
+  .use(cors({
+    origin: ['https://chatfusion.up.railway.app', 'http://localhost:3000'],
+    methods: ['GET', 'POST'],
+    credentials: true
+  }))
   .get('/', () => 'YouTube Live Chat Aggregator API')
   .get('/debug', async () => {
     const debugInfo = await getDebugInfo();

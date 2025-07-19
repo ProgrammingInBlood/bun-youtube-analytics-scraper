@@ -33,7 +33,7 @@ const app = new Elysia()
     origin: ['https://chatsfusion.vercel.app', 'http://localhost:3000', 'http://localhost:3001'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
+    credentials: false
   }))
   .get('/', () => 'YouTube Live Chat Aggregator API')
   .get('/debug', async () => {

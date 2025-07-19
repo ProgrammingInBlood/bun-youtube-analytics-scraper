@@ -31,8 +31,6 @@ async function getDebugInfo() {
 const app = new Elysia()
   .use(cors({
     origin: ['https://chatsfusion.vercel.app', 'http://localhost:3000'],
-    methods: ['GET', 'POST'],
-    credentials: true
   }))
   .get('/', () => 'YouTube Live Chat Aggregator API')
   .get('/debug', async () => {

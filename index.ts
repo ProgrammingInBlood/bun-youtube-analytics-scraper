@@ -30,7 +30,7 @@ async function getDebugInfo() {
 
 const app = new Elysia()
   .use(cors({
-    origin: ['https://youtubemultichat.onrender.com', 'http://localhost:3000'],
+    origin: ['https://chatsfusion.vercel.app', 'http://localhost:3000'],
     methods: ['GET', 'POST'],
     credentials: true
   }))

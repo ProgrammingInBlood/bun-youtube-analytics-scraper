@@ -2,7 +2,6 @@ import { Elysia, t } from 'elysia';
 import { cors } from '@elysiajs/cors';
 import { getLiveChat } from './api/liveChat';
 import { getVideoMetadata } from './api/videoMetadata';
-import { getChannelLiveVideos } from './api/channelLiveVideos';
 
 interface LiveChatRequestBody {
   urls: string[];
@@ -31,7 +30,7 @@ async function getDebugInfo() {
 
 const app = new Elysia()
   .use(cors({
-    origin: ['https://chatfusion.up.railway.app', 'http://localhost:3000'],
+    origin: ['https://youtubemultichat.onrender.com', 'http://localhost:3000'],
     methods: ['GET', 'POST'],
     credentials: true
   }))
@@ -106,30 +105,7 @@ const app = new Elysia()
       })
     }
   )
-  .post('/api/channel-live-videos', 
-    async ({ body }: { body: ChannelRequestBody }) => {
-      const { channelUrl } = body;
-      
-      if (!channelUrl) {
-        return { 
-          error: 'Please provide a valid YouTube channel URL' 
-        };
-      }
 
-      try {
-        const liveVideos = await getChannelLiveVideos(channelUrl);
-        return liveVideos;
-      } catch (error) {
-        console.error('Error fetching channel live videos:', error);
-        return { videos: [], error: 'Failed to fetch live videos from channel' };
-      }
-    }, 
-    {
-      body: t.Object({
-        channelUrl: t.String()
-      })
-    }
-  )
   .listen(3001);
 
 console.log(`🦊 YouTube Live Chat Aggregator API is running at ${app.server?.hostname}:${app.server?.port}`);

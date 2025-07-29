@@ -14,37 +14,15 @@ interface MetadataRequestBody {
   urls: string[];
 }
 
-interface ChannelRequestBody {
-  channelUrl: string;
-}
-
-// Debug information about the current state
-async function getDebugInfo() {
-  return {
-    status: 'Direct API implementation (no Puppeteer)',
+export default new Elysia()
+  .use(cors())
+  .get('/', () => 'YouTube Live Chat Aggregator API')
+  .get('/debug', () => ({
+    status: 'ok',
     timestamp: new Date().toISOString(),
     version: '1.0.0',
     memory: process.memoryUsage()
-  };
-}
-
-const app = new Elysia()
-.use(cors()
-  .get('/', () => 'YouTube Live Chat Aggregator API')
-  .get('/debug', async () => {
-    const debugInfo = await getDebugInfo();
-    return {
-      status: 'ok',
-      message: 'Debug information',
-      info: debugInfo
-    };
-  })
-  .post('/reset', async () => {
-    return {
-      status: 'ok',
-      message: 'No browser to reset in direct API mode'
-    };
-  })
+  }))
   .post('/api/live-chat', 
     async ({ body }: { body: LiveChatRequestBody }) => {
       const { urls, pageSize, after, messageIds } = body;
@@ -56,13 +34,7 @@ const app = new Elysia()
       }
 
       try {
-        const chatData = await getLiveChat({
-          urls,
-          pageSize,
-          after,
-          messageIds
-        });
-        return chatData;
+        return await getLiveChat({ urls, pageSize, after, messageIds });
       } catch (error) {
         console.error('Error fetching live chat:', error);
         return { error: 'Failed to fetch live chat data' };
@@ -88,8 +60,7 @@ const app = new Elysia()
       }
 
       try {
-        const metadataList = await getVideoMetadata(urls);
-        return metadataList;
+        return await getVideoMetadata(urls);
       } catch (error) {
         console.error('Error fetching video metadata:', error);
         return { error: 'Failed to fetch video metadata' };
@@ -101,62 +72,6 @@ const app = new Elysia()
       })
     }
   )
+  .listen(3000);
 
-  .listen(3001);
-
-console.log(`🦊 YouTube Live Chat Aggregator API is running at ${app.server?.hostname}:${app.server?.port}`);
-
-// Cleanup on server shutdown
-let isShuttingDown = false;
-
-async function cleanup() {
-  // Prevent multiple cleanup attempts
-  if (isShuttingDown) return;
-  isShuttingDown = true;
-  
-  console.log('Shutting down server and cleaning up resources...');
-  
-  // Set a timeout to force exit if cleanup takes too long
-  const forceExitTimeout = setTimeout(() => {
-    console.error('Forced exit after timeout - some resources may not have been properly cleaned up');
-    process.exit(1);
-  }, 10000); // Force exit after 10 seconds
-  
-  try {
-    // Close the HTTP server gracefully
-    if (app.server) {
-      console.log('Closing HTTP server...');
-      await new Promise<void>((resolve) => {
-        if (!app.server) return resolve();
-        // Use type assertion to access close method
-        (app.server as any).close(() => resolve());
-      });
-    }
-    
-    console.log('Cleanup completed successfully');
-    clearTimeout(forceExitTimeout);
-    process.exit(0);
-  } catch (err) {
-    console.error('Error during cleanup:', err);
-    clearTimeout(forceExitTimeout);
-    process.exit(1);
-  }
-}
-
-// Handle graceful shutdown
-process.on('SIGINT', cleanup);
-process.on('SIGTERM', cleanup);
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught exception:', err);
-  cleanup();
-});
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled rejection:', reason);
-  cleanup();
-});
-
-export type App = typeof app; 
+console.log(`🦊 YouTube Live Chat Aggregator API is running`);

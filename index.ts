@@ -29,11 +29,11 @@ async function getDebugInfo() {
 }
 
 const app = new Elysia()
-  .use(cors({
-    origin: "*",
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    credentials: false
-  }))
+.use(cors({
+  origin: true, // This will correctly set Access-Control-Allow-Origin to *
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: false
+}))
   .get('/', () => 'YouTube Live Chat Aggregator API')
   .get('/debug', async () => {
     const debugInfo = await getDebugInfo();

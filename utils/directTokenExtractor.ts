@@ -1,4 +1,5 @@
-import axios from 'axios';
+// User agent for backend requests to mimic a real browser
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
 
 // Cache to store tokens for each video URL
 const tokenCache: Record<string, {
@@ -49,15 +50,21 @@ export async function extractYouTubeTokens(videoUrl: string) {
   try {
     // Set up headers to mimic a browser request
     const headers = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      'User-Agent': USER_AGENT,
       'Accept-Language': 'en-US,en;q=0.9',
+      'Accept-Encoding': 'gzip, deflate',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
     };
 
     // Make a direct request to the YouTube page
     console.log(`Fetching HTML for ${videoUrl}`);
-    const response = await axios.get(videoUrl, { headers });
-    const rawHtml = response.data;
+    const response = await fetch(videoUrl, { headers });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const rawHtml = await response.text();
 
     // Extract ytcfg data using regex
     const ytcfgMatch = rawHtml.match(/ytcfg\.set\s*\(\s*({.+?})\s*\)\s*;/);
@@ -163,21 +170,28 @@ export async function fetchLiveChatMessages(videoUrl: string, tokens: any) {
       continuation: tokens.continuationToken
     };
 
-    const response = await axios.post(
+    const response = await fetch(
       `https://www.youtube.com/youtubei/v1/live_chat/get_live_chat?key=${tokens.apiKey}`,
-      requestData,
       {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        }
+          'User-Agent': USER_AGENT,
+        },
+        body: JSON.stringify(requestData)
       }
     );
 
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const responseData = await response.json();
+
     // Extract continuation token for next request
     let continuation = null;
-    if (response.data?.continuationContents?.liveChatContinuation?.continuations) {
-      const continuations = response.data.continuationContents.liveChatContinuation.continuations;
+    if (responseData?.continuationContents?.liveChatContinuation?.continuations) {
+      const continuations = responseData.continuationContents.liveChatContinuation.continuations;
       for (const cont of continuations) {
         if (cont.invalidationContinuationData?.continuation) {
           continuation = cont.invalidationContinuationData.continuation;
@@ -191,7 +205,7 @@ export async function fetchLiveChatMessages(videoUrl: string, tokens: any) {
     }
 
     return {
-      data: response.data,
+      data: responseData,
       continuation
     };
   } catch (error) {
@@ -234,23 +248,30 @@ export async function fetchVideoMetadata(videoUrl: string, tokens: any) {
 
       // Try primary endpoint first
       try {
-        const primaryResponse = await axios.post(
+        const primaryResponse = await fetch(
           `https://www.youtube.com/youtubei/v1/updated_metadata?key=${tokens.apiKey}`,
-          requestData,
           {
+            method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+              'User-Agent': USER_AGENT,
             },
-            timeout: 15000 // 15 second timeout
+            body: JSON.stringify(requestData),
+            signal: AbortSignal.timeout(15000) // 15 second timeout
           }
         );
 
-        if (primaryResponse.data) {
+        if (!primaryResponse.ok) {
+          throw new Error(`HTTP error! status: ${primaryResponse.status}`);
+        }
+
+        const primaryData = await primaryResponse.json();
+
+        if (primaryData) {
           // Reset retry delay on success
           retryDelay = INITIAL_RETRY_DELAY;
           return {
-            primary: primaryResponse.data,
+            primary: primaryData,
             backup: null
           };
         }
@@ -267,24 +288,31 @@ export async function fetchVideoMetadata(videoUrl: string, tokens: any) {
 
       // If primary fails, try backup endpoint
       try {
-        const backupResponse = await axios.post(
+        const backupResponse = await fetch(
           `https://www.youtube.com/youtubei/v1/next?key=${tokens.apiKey}`,
-          requestData,
           {
+            method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+              'User-Agent': USER_AGENT,
             },
-            timeout: 15000 // 15 second timeout
+            body: JSON.stringify(requestData),
+            signal: AbortSignal.timeout(15000) // 15 second timeout
           }
         );
 
-        if (backupResponse.data) {
+        if (!backupResponse.ok) {
+          throw new Error(`HTTP error! status: ${backupResponse.status}`);
+        }
+
+        const backupData = await backupResponse.json();
+
+        if (backupData) {
           // Reset retry delay on success
           retryDelay = INITIAL_RETRY_DELAY;
           return {
             primary: null,
-            backup: backupResponse.data
+            backup: backupData
           };
         }
       } catch (backupError: any) {
@@ -405,14 +433,19 @@ export async function getChannelLiveVideos(channelUrl: string): Promise<{
     
     // Set up headers to mimic a browser request
     const headers = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      'User-Agent': USER_AGENT,
       'Accept-Language': 'en-US,en;q=0.9',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
     };
 
     // Fetch the channel page
-    const response = await axios.get(liveUrl, { headers });
-    const html = response.data;
+    const response = await fetch(liveUrl, { headers });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const html = await response.text();
     
     // Extract channel name
     let channelName = '';
